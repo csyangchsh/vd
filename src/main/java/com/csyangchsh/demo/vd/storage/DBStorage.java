@@ -21,7 +21,7 @@ public class DBStorage {
     private static final Logger logger = LoggerFactory.getLogger(DBStorage.class);
 
     // File format constants
-    private static final String MAGIC_NUMBER = "VDB1";  // Version 1
+    private static final String MAGIC_NUMBER = "VDB1";
     private static final int CURRENT_VERSION = 1;
 
     /**
@@ -57,6 +57,11 @@ public class DBStorage {
 
         // Write default distance type
         out.writeInt(db.getDefaultDistanceType().ordinal());
+
+        // Write default index type (for new collections)
+        // Get the index type from the default collection
+        IndexType defaultIndexType = db.getDefaultCollection().getIndexType();
+        out.writeInt(defaultIndexType.ordinal());
 
         // Write collection count
         Map<String, VectorCollection> collections = db.getCollections();
@@ -175,7 +180,7 @@ public class DBStorage {
         // Read version
         int version = in.readInt();
         if (version != CURRENT_VERSION) {
-            logger.warn("Version mismatch: expected {}, got {}", CURRENT_VERSION, version);
+            throw new IOException("Unsupported database version: " + version);
         }
 
         // Read dimension
@@ -185,8 +190,12 @@ public class DBStorage {
         int distanceTypeOrdinal = in.readInt();
         DistanceType distanceType = DistanceType.values()[distanceTypeOrdinal];
 
+        // Read default index type
+        int indexTypeOrdinal = in.readInt();
+        IndexType defaultIndexType = IndexType.values()[indexTypeOrdinal];
+
         // Create DB
-        VectorDB db = VectorDB.create(dimension, distanceType, IndexType.FLAT);
+        VectorDB db = VectorDB.create(dimension, distanceType, defaultIndexType);
 
         // Clear default collection (we'll load collections)
         db.clearAll();
@@ -197,9 +206,17 @@ public class DBStorage {
         // Read each collection
         for (int i = 0; i < collectionCount; i++) {
             VectorCollection collection = loadCollection(in);
-            // Get the internal collections map and add the loaded collection
-            var collections = db.getCollections();
-            collections.put(collection.getName(), collection);
+
+            // Add collection to the internal collections map via reflection
+            try {
+                var collectionsField = db.getClass().getDeclaredField("collections");
+                collectionsField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<String, VectorCollection> collections = (Map<String, VectorCollection>) collectionsField.get(db);
+                collections.put(collection.getName(), collection);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new IOException("Failed to add collection to database", e);
+            }
 
             // Set as default if it's the default collection
             if ("default".equals(collection.getName())) {
