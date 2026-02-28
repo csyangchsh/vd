@@ -1,0 +1,43 @@
+# VectorDB Server Configuration
+
+server:
+  # Server bind address (0.0.0.0 for all interfaces)
+  host: "0.0.0.0"
+  # Server port
+  port: 8080
+  # Number of worker threads
+  threads: 16
+  # Max request size in MB (for inserting large documents)
+  maxRequestSize: 100
+
+database:
+  # Vector dimension
+  dimension: 1024
+  # Distance metric: L2, COSINE, INNER_PRODUCT
+  distanceType: "L2"
+  # Index type: FLAT, COMPACT_FLAT, HNSW, PQ
+  indexType: "HNSW"
+  # Path to store database files
+  indexPath: "./data/vectordb"
+  # Enable automatic save
+  # Recommended: true for production, false for development
+  autoSave: true
+  # Auto-save interval in seconds
+  # - Shorter interval (30-60s): Less data loss on crash, more disk I/O
+  # - Longer interval (300-600s): More disk I/O efficiency, more data loss risk
+  # Recommended: 60s for production, 120s for development
+  autoSaveInterval: 60  # 1 minute
+
+# HNSW-specific settings (only used when indexType is HNSW)
+hnsw:
+  # Max connections per node (recommended: 16)
+  M: 16
+  # Search width during construction (recommended: 200)
+  efConstruction: 200
+
+# Logging configuration
+logging:
+  # Log level: TRACE, DEBUG, INFO, WARN, ERROR
+  level: "INFO"
+  # Log file path (optional, logs to console if not specified)
+  # file: "/var/log/vectordb/server.log"

@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Vector DB</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 10px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .search-box button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .search-box button:hover {
+            background: #5568d3;
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination button:not(:disabled):hover {
+            background: #f0f0f0;
+        }
+
+        .page-info {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .vector-id {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: #667eea;
+            cursor: pointer;
+        }
+
+        .vector-id:hover {
+            text-decoration: underline;
+        }
+
+        .vector-text {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #555;
+        }
+
+        .metadata {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .metadata-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #555;
+        }
+
+        .dimension-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #e7f3ff;
+            color: #0066cc;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .deleted-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #ffe7e7;
+            color: #cc0000;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .loading::after {
+            content: "";
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f0f0f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px 20px;
+            color: #cc0000;
+            background: #ffe7e7;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .detail-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .detail-modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .detail-row {
+            margin-bottom: 20px;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            color: #333;
+            word-break: break-all;
+        }
+
+        .detail-value pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Simple Vector DB</h1>
+        <div class="stats">
+            <span id="totalVectors">总向量数: 加载中...</span>
+            <span id="activeVectors">活跃向量: 加载中...</span>
+            <span id="dimension">维度: 加载中...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索向量ID或文本内容...">
+                <button onclick="searchVectors()">搜索</button>
+            </div>
+            <div class="pagination">
+                <button onclick="prevPage()" id="prevBtn">上一页</button>
+                <span class="page-info">第 <span id="currentPage">1</span> 页</span>
+                <button onclick="nextPage()" id="nextBtn">下一页</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div id="loading" class="loading">加载中...</div>
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="empty" class="empty" style="display: none;">暂无向量数据</div>
+            <table id="vectorsTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th width="25%">向量ID</th>
+                        <th width="35%">文本内容</th>
+                        <th width="25%">元数据</th>
+                        <th width="15%">状态</th>
+                    </tr>
+                </thead>
+                <tbody id="vectorsBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="detail-modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>向量详情</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PAGE_SIZE = 50;
+        let currentPage = 1;
+        let totalVectors = 0;
+        let allVectors = [];
+        let filteredVectors = [];
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/vectors');
+                const data = await response.json();
+                document.getElementById('totalVectors').textContent = `总向量数: ${data.total}`;
+                document.getElementById('activeVectors').textContent = `活跃向量: ${data.active}`;
+                document.getElementById('dimension').textContent = `维度: ${data.dimension}`;
+                totalVectors = data.active;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        async function loadAllVectors() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('empty').style.display = 'none';
+            document.getElementById('vectorsTable').style.display = 'none';
+
+            try {
+                // Fetch all vectors
+                const response = await fetch('/vectors/all');
+                if (!response.ok) throw new Error('Failed to fetch vectors');
+
+                const data = await response.json();
+                allVectors = data.vectors || [];
+                filteredVectors = [...allVectors];
+
+                if (filteredVectors.length === 0) {
+                    document.getElementById('empty').style.display = 'block';
+                } else {
+                    displayVectors();
+                    document.getElementById('vectorsTable').style.display = 'table';
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = '加载失败: ' + error.message;
+                document.getElementById('error').style.display = 'block';
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayVectors() {
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageData = filteredVectors.slice(start, end);
+
+            const tbody = document.getElementById('vectorsBody');
+            tbody.innerHTML = '';
+
+            pageData.forEach(vector => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="vector-id" onclick="showDetail('${vector.id}')">${vector.id}</span></td>
+                    <td><div class="vector-text" title="${vector.text || ''}">${vector.text || '-'}</div></td>
+                    <td><div class="metadata">${formatMetadata(vector.metadata)}</div></td>
+                    <td>${vector.deleted ? '<span class="deleted-badge">已删除</span>' : '<span style="color: #28a745;">● 活跃</span>'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = end >= filteredVectors.length;
+        }
+
+        function formatMetadata(metadata) {
+            if (!metadata || Object.keys(metadata).length === 0) return '-';
+            return Object.entries(metadata).map(([k, v]) =>
+                `<span class="metadata-tag">${k}: ${v}</span>`
+            ).join('');
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                displayVectors();
+            }
+        }
+
+        function nextPage() {
+            if (currentPage * PAGE_SIZE < filteredVectors.length) {
+                currentPage++;
+                displayVectors();
+            }
+        }
+
+        function searchVectors() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            currentPage = 1;
+
+            if (!query) {
+                filteredVectors = [...allVectors];
+            } else {
+                filteredVectors = allVectors.filter(v =>
+                    v.id.toLowerCase().includes(query) ||
+                    (v.text && v.text.toLowerCase().includes(query))
+                );
+            }
+
+            if (filteredVectors.length === 0) {
+                document.getElementById('vectorsTable').style.display = 'none';
+                document.getElementById('empty').style.display = 'block';
+            } else {
+                document.getElementById('empty').style.display = 'none';
+                document.getElementById('vectorsTable').style.display = 'table';
+                displayVectors();
+            }
+        }
+
+        function showDetail(id) {
+            const vector = allVectors.find(v => v.id === id);
+            if (!vector) return;
+
+            const modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                <div class="detail-row">
+                    <div class="detail-label">向量ID</div>
+                    <div class="detail-value"><span class="vector-id">${vector.id}</span></div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">状态</div>
+                    <div class="detail-value">${vector.deleted ? '已删除' : '活跃'}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">文本内容</div>
+                    <div class="detail-value">${vector.text || '-'}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">向量数组 (${vector.vector?.length || 0}维)</div>
+                    <div class="detail-value"><pre>${vector.vector ? JSON.stringify(vector.vector) : '-'}</pre></div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">元数据</div>
+                    <div class="detail-value">${vector.metadata ? JSON.stringify(vector.metadata, null, 2) : '-'}</div>
+                </div>
+            `;
+
+            document.getElementById('detailModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('show');
+        }
+
+        // Close modal on background click
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // Search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchVectors();
+        });
+
+        // Initialize
+        loadStats();
+        loadAllVectors();
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadStats();
+            loadAllVectors();
+        }, 30000);
+    </script>
+</body>
+</html>
